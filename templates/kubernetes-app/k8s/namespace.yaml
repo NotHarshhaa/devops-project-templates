@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-app
+  labels:
+    name: my-app
+    environment: production
+    team: platform
+    project: devops-templates
+  annotations:
+    description: "Namespace for my-app deployment"
+    contact: "platform-team@company.com"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-app-staging
+  labels:
+    name: my-app-staging
+    environment: staging
+    team: platform
+    project: devops-templates
+  annotations:
+    description: "Namespace for my-app staging deployment"
+    contact: "platform-team@company.com"

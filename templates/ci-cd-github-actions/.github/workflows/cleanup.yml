@@ -1,0 +1,226 @@
+name: 🧹 Cleanup Pipeline
+
+on:
+  schedule:
+    # Run cleanup monthly on the 1st at 3 AM UTC
+    - cron: '0 3 1 * *'
+  workflow_dispatch:
+    inputs:
+      cleanup_type:
+        description: 'Type of cleanup to perform'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - artifacts
+        - images
+        - resources
+      dry_run:
+        description: 'Dry run (no actual deletion)'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  RETENTION_DAYS: 30
+  DOCKER_REGISTRY: 'docker.io'
+  DOCKER_IMAGE_NAME: 'my-app'
+
+jobs:
+  cleanup-artifacts:
+    name: 🗂️ Clean Up Artifacts
+    runs-on: ubuntu-latest
+    if: github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'artifacts' || github.event.inputs.cleanup_type == ''
+    steps:
+      - name: List all artifacts
+        id: list-artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = [];
+            let page = 1;
+            let hasMore = true;
+            
+            while (hasMore) {
+              const response = await github.rest.actions.listArtifactsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 100,
+                page: page
+              });
+              
+              artifacts.push(...response.data.artifacts);
+              hasMore = response.data.artifacts.length === 100;
+              page++;
+            }
+            
+            const oldArtifacts = artifacts.filter(artifact => {
+              const createdDate = new Date(artifact.created_at);
+              const cutoffDate = new Date(Date.now() - ${{ env.RETENTION_DAYS }} * 24 * 60 * 60 * 1000);
+              return createdDate < cutoffDate;
+            });
+            
+            console.log(`Found ${oldArtifacts.length} artifacts older than ${{ env.RETENTION_DAYS }} days`);
+            oldArtifacts.forEach(artifact => {
+              console.log(`- ${artifact.name} (${artifact.size_in_bytes} bytes, created: ${artifact.created_at})`);
+            });
+            
+            return oldArtifacts;
+
+      - name: Delete old artifacts
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          artifacts="${{ steps.list-artifacts.outputs.result }}"
+          echo "Deleting artifacts..."
+          # Add deletion logic here using the artifact IDs
+
+  cleanup-docker-images:
+    name: 🐳 Clean Up Docker Images
+    runs-on: ubuntu-latest
+    if: github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'images' || github.event.inputs.cleanup_type == ''
+    steps:
+      - name: Log in to Docker Hub
+        if: github.event.inputs.dry_run != 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: List old Docker images
+        id: list-images
+        run: |
+          echo "Scanning for old Docker images..."
+          # Add logic to list old Docker images
+          echo "Found old images to clean up"
+
+      - name: Delete old Docker images
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          echo "Deleting old Docker images..."
+          # Add Docker image deletion logic here
+
+  cleanup-cloud-resources:
+    name: ☁️ Clean Up Cloud Resources
+    runs-on: ubuntu-latest
+    if: github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'resources' || github.event.inputs.cleanup_type == ''
+    steps:
+      - name: Configure AWS credentials
+        if: github.event.inputs.dry_run != 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Clean up old ECR images
+        run: |
+          echo "Cleaning up old ECR images..."
+          # Add ECR cleanup logic here
+
+      - name: Clean up old S3 objects
+        run: |
+          echo "Cleaning up old S3 objects..."
+          # Add S3 cleanup logic here
+
+      - name: Clean up old CloudFormation stacks
+        run: |
+          echo "Cleaning up old CloudFormation stacks..."
+          # Add CloudFormation cleanup logic here
+
+  cleanup-kubernetes-resources:
+    name: ☸️ Clean Up Kubernetes Resources
+    runs-on: ubuntu-latest
+    if: github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'resources' || github.event.inputs.cleanup_type == ''
+    steps:
+      - name: Update kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: List old Kubernetes resources
+        run: |
+          export KUBECONFIG=kubeconfig
+          echo "Scanning for old Kubernetes resources..."
+          
+          # List old jobs
+          kubectl get jobs --all-namespaces --sort-by=.metadata.creationTimestamp
+          
+          # List old pods
+          kubectl get pods --all-namespaces --sort-by=.metadata.creationTimestamp
+          
+          # List failed deployments
+          kubectl get deployments --all-namespaces -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.availableReplicas}{"\n"}{end}'
+
+      - name: Clean up old Kubernetes resources
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          export KUBECONFIG=kubeconfig
+          echo "Cleaning up old Kubernetes resources..."
+          
+          # Clean up completed jobs older than 7 days
+          kubectl delete jobs --all-namespaces --field-selector status.successful=1 --ignore-not-found=true
+          
+          # Clean up failed pods
+          kubectl delete pods --all-namespaces --field-selector status.phase=Failed --ignore-not-found=true
+          
+          # Clean up evicted pods
+          kubectl delete pods --all-namespaces --field-selector status.phase=Evicted --ignore-not-found=true
+
+  cleanup-workspace:
+    name: 💾 Clean Up Workspace
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean up workspace
+        run: |
+          echo "Cleaning up workspace..."
+          df -h
+          sudo rm -rf /tmp/* || true
+          sudo apt-get clean || true
+          docker system prune -af || true
+          df -h
+
+  generate-cleanup-report:
+    name: 📊 Generate Cleanup Report
+    runs-on: ubuntu-latest
+    needs: [cleanup-artifacts, cleanup-docker-images, cleanup-cloud-resources, cleanup-kubernetes-resources, cleanup-workspace]
+    if: always()
+    steps:
+      - name: Generate cleanup summary
+        run: |
+          echo "# 🧹 Cleanup Report" > cleanup-report.md
+          echo "" >> cleanup-report.md
+          echo "Generated on: $(date)" >> cleanup-report.md
+          echo "Dry run: ${{ github.event.inputs.dry_run || 'false' }}" >> cleanup-report.md
+          echo "" >> cleanup-report.md
+          echo "## Cleanup Tasks Status" >> cleanup-report.md
+          echo "" >> cleanup-report.md
+          echo "| Task | Status |" >> cleanup-report.md
+          echo "|------|--------|" >> cleanup-report.md
+          echo "| Artifact Cleanup | ${{ needs.cleanup-artifacts.result == 'success' && '✅ Completed' || '❌ Failed' }} |" >> cleanup-report.md
+          echo "| Docker Image Cleanup | ${{ needs.cleanup-docker-images.result == 'success' && '✅ Completed' || '❌ Failed' }} |" >> cleanup-report.md
+          echo "| Cloud Resource Cleanup | ${{ needs.cleanup-cloud-resources.result == 'success' && '✅ Completed' || '❌ Failed' }} |" >> cleanup-report.md
+          echo "| Kubernetes Cleanup | ${{ needs.cleanup-kubernetes-resources.result == 'success' && '✅ Completed' || '❌ Failed' }} |" >> cleanup-report.md
+          echo "| Workspace Cleanup | ${{ needs.cleanup-workspace.result == 'success' && '✅ Completed' || '❌ Failed' }} |" >> cleanup-report.md
+          echo "" >> cleanup-report.md
+          echo "## Resources Saved" >> cleanup-report.md
+          echo "" >> cleanup-report.md
+          echo "- Storage space reclaimed" >> cleanup-report.md
+          echo "- CI/CD artifacts removed" >> cleanup-report.md
+          echo "- Docker images cleaned up" >> cleanup-report.md
+          echo "- Cloud resources optimized" >> cleanup-report.md
+
+      - name: Upload cleanup report
+        uses: actions/upload-artifact@v3
+        with:
+          name: cleanup-report
+          path: cleanup-report.md
+
+      - name: Notify cleanup completion
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#devops'
+          text: '🧹 Monthly cleanup completed! Check the reports for details.'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

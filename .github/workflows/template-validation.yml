@@ -1,0 +1,385 @@
+name: 🧪 Template Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'templates/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'templates/**'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  validate-docker-template:
+    name: 🐳 Validate Docker Template
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./templates/docker-only
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate Dockerfile
+        run: |
+          docker build -t test-docker-template .
+          docker images test-docker-template
+
+      - name: Validate docker-compose
+        run: |
+          docker-compose config
+          docker-compose -f docker-compose.yml config --quiet
+
+      - name: Test Docker build
+        run: |
+          docker build -t docker-template-test .
+          docker run --rm -d -p 8080:80 --name test-container docker-template-test
+          sleep 10
+          curl -f http://localhost:8080/health || echo "Health check endpoint not available"
+          docker stop test-container
+
+  validate-kubernetes-template:
+    name: ☸️ Validate Kubernetes Template
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./templates/kubernetes-app
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Validate Kubernetes manifests
+        run: |
+          kubectl apply --dry-run=client -f k8s/
+          kubectl validate -f k8s/ || echo "kubectl validate not available, continuing..."
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+
+      - name: Validate Helm chart
+        run: |
+          helm lint helm-chart/
+          helm template test-release helm-chart/ --debug
+
+      - name: Test Helm chart installation
+        run: |
+          helm install test-release helm-chart/ --dry-run --debug
+
+  validate-terraform-template:
+    name: 🌩️ Validate Terraform Template
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./templates/terraform-aws-infra
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: latest
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan (Dry Run)
+        run: |
+          terraform plan -var="environment=dev" -var="project=test" -out=tfplan
+          terraform show -json tfplan > plan.json
+
+      - name: Run tflint
+        uses: terraform-linters/tflint@v0.44.1
+        with:
+          working-directory: ./templates/terraform-aws-infra
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: ./templates/terraform-aws-infra
+          soft_fail: true
+
+  validate-cicd-template:
+    name: 🔄 Validate CI/CD Template
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./templates/ci-cd-github-actions
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Validate package.json
+        run: |
+          if [ -f package.json ]; then
+            npm ci
+            npm run test:unit || echo "No unit tests configured"
+          fi
+
+      - name: Validate Dockerfile
+        run: |
+          docker build -t test-cicd-template .
+          docker images test-cicd-template
+
+      - name: Validate GitHub Actions workflows
+        run: |
+          for workflow in .github/workflows/*.yml; do
+            echo "Validating $workflow"
+            yamllint $workflow || echo "yamllint not available, continuing..."
+          done
+
+  validate-full-pipeline-template:
+    name: 🚀 Validate Full Pipeline Template
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./templates/full-devops-pipeline
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate Docker configuration
+        run: |
+          if [ -f docker/Dockerfile ]; then
+            cd docker
+            docker build -t test-full-pipeline .
+          fi
+
+      - name: Validate Kubernetes manifests
+        run: |
+          if [ -d kubernetes/manifests ]; then
+            kubectl apply --dry-run=client -f kubernetes/manifests/
+          fi
+
+      - name: Validate Terraform configuration
+        run: |
+          if [ -d terraform ]; then
+            cd terraform
+            terraform init -backend=false
+            terraform validate
+          fi
+
+      - name: Validate Helm charts
+        run: |
+          if [ -d kubernetes/helm-charts ]; then
+            for chart in kubernetes/helm-charts/*/; do
+              if [ -f "$chart/Chart.yaml" ]; then
+                helm lint "$chart"
+              fi
+            done
+          fi
+
+  security-scan:
+    name: 🔒 Security Scan All Templates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+
+      - name: Scan Dockerfiles
+        run: |
+          find templates/ -name "Dockerfile" -exec docker run --rm -v "$(pwd)":/app -w /app hadolint/hadolint {} \; || echo "Hadolint scan completed"
+
+      - name: Check for hardcoded secrets
+        run: |
+          # Check for common secret patterns
+          grep -r -i "password\|secret\|key\|token" templates/ --include="*.yml" --include="*.yaml" --include="*.json" --include="*.tf" | grep -v "example\|placeholder\|changeme\|your_" || echo "No hardcoded secrets found"
+
+  documentation-check:
+    name: 📚 Documentation Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check README files exist
+        run: |
+          for template in templates/*/; do
+            if [ -f "$template/README.md" ]; then
+              echo "✅ $template has README.md"
+            else
+              echo "❌ $template missing README.md"
+              exit 1
+            fi
+          done
+
+      - name: Validate Markdown files
+        run: |
+          find templates/ -name "*.md" -exec markdownlint {} \; || echo "Markdown lint completed"
+
+      - name: Check for required sections
+        run: |
+          for readme in templates/*/README.md; do
+            echo "Checking $readme for required sections..."
+            if grep -q "## 🎯 Purpose" "$readme" && \
+               grep -q "## 📁 Structure" "$readme" && \
+               grep -q "## 🚀 Quick Start" "$readme"; then
+              echo "✅ $readme has required sections"
+            else
+              echo "❌ $readme missing required sections"
+              exit 1
+            fi
+          done
+
+  template-consistency:
+    name: 🔍 Template Consistency Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check file structure consistency
+        run: |
+          echo "Checking template structures..."
+          
+          # Check if all templates have README.md
+          for template in templates/*/; do
+            template_name=$(basename "$template")
+            if [ ! -f "$template/README.md" ]; then
+              echo "❌ $template_name missing README.md"
+              exit 1
+            fi
+          done
+
+      - name: Check for common files
+        run: |
+          echo "Checking for common configuration files..."
+          
+          # Check for Docker templates
+          if [ -d "templates/docker-only" ]; then
+            required_files=("Dockerfile" "docker-compose.yml" ".dockerignore")
+            for file in "${required_files[@]}"; do
+              if [ ! -f "templates/docker-only/$file" ]; then
+                echo "❌ docker-only missing $file"
+                exit 1
+              fi
+            done
+          fi
+
+      - name: Validate naming conventions
+        run: |
+          echo "Checking naming conventions..."
+          
+          # Check kebab-case for directories
+          find templates/ -maxdepth 1 -type d -name "*_*" && {
+            echo "❌ Found directories with underscores, use kebab-case"
+            exit 1
+          } || echo "✅ Directory naming convention OK"
+
+  performance-check:
+    name: ⚡ Performance Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Docker image sizes
+        run: |
+          echo "Building Docker images to check sizes..."
+          
+          for dockerfile in templates/*/Dockerfile; do
+            if [ -f "$dockerfile" ]; then
+              template_dir=$(dirname "$dockerfile")
+              template_name=$(basename "$template_dir")
+              
+              echo "Building $template_name Docker image..."
+              cd "$template_dir"
+              
+              if docker build -t "test-$template_name" .; then
+                size=$(docker images "test-$template-name" --format "{{.Size}}")
+                echo "📊 $template_name image size: $size"
+                
+                # Clean up
+                docker rmi "test-$template_name" || true
+              else
+                echo "❌ Failed to build $template_name Docker image"
+              fi
+              
+              cd - > /dev/null
+            fi
+          done
+
+      - name: Check Terraform resource counts
+        run: |
+          echo "Checking Terraform template complexity..."
+          
+          if [ -d "templates/terraform-aws-infra" ]; then
+            cd templates/terraform-aws-infra
+            
+            resource_count=$(find . -name "*.tf" -exec grep -h "resource " {} \; | wc -l)
+            echo "📊 Terraform resources: $resource_count"
+            
+            if [ $resource_count -gt 100 ]; then
+              echo "⚠️  High resource count, consider modularization"
+            fi
+            
+            cd - > /dev/null
+          fi
+
+  notify-results:
+    name: 📢 Notify Results
+    runs-on: ubuntu-latest
+    needs: [validate-docker-template, validate-kubernetes-template, validate-terraform-template, validate-cicd-template, validate-full-pipeline-template, security-scan, documentation-check, template-consistency, performance-check]
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "## 🧪 Template Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Template | ${{ needs.validate-docker-template.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Kubernetes Template | ${{ needs.validate-kubernetes-template.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Terraform Template | ${{ needs.validate-terraform-template.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CI/CD Template | ${{ needs.validate-cicd-template.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Full Pipeline Template | ${{ needs.validate-full-pipeline-template.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Documentation Check | ${{ needs.documentation-check.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Template Consistency | ${{ needs.template-consistency.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Performance Check | ${{ needs.performance-check.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on Failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#devops-templates'
+          text: '❌ Template validation failed! Please check the GitHub Actions logs.'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

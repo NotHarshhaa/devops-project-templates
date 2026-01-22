@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-app-config
+  namespace: my-app
+  labels:
+    app: my-app
+    component: config
+    version: v1
+data:
+  NODE_ENV: "production"
+  PORT: "8080"
+  LOG_LEVEL: "info"
+  API_URL: "https://api.myapp.com"
+  DATABASE_HOST: "postgres.my-app.svc.cluster.local"
+  DATABASE_PORT: "5432"
+  REDIS_HOST: "redis.my-app.svc.cluster.local"
+  REDIS_PORT: "6379"
+  CACHE_TTL: "3600"
+  MAX_CONNECTIONS: "100"
+  TIMEOUT: "30000"
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+  HEALTH_CHECK_INTERVAL: "30"
+  GRACEFUL_SHUTDOWN_TIMEOUT: "30"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-app-config-staging
+  namespace: my-app-staging
+  labels:
+    app: my-app
+    component: config
+    version: v1
+data:
+  NODE_ENV: "staging"
+  PORT: "8080"
+  LOG_LEVEL: "debug"
+  API_URL: "https://staging-api.myapp.com"
+  DATABASE_HOST: "postgres-staging.my-app-staging.svc.cluster.local"
+  DATABASE_PORT: "5432"
+  REDIS_HOST: "redis-staging.my-app-staging.svc.cluster.local"
+  REDIS_PORT: "6379"
+  CACHE_TTL: "300"
+  MAX_CONNECTIONS: "20"
+  TIMEOUT: "15000"
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+  HEALTH_CHECK_INTERVAL: "15"
+  GRACEFUL_SHUTDOWN_TIMEOUT: "15"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: my-app
+  labels:
+    app: my-app
+    component: nginx
+data:
+  nginx.conf: |
+    events {
+        worker_connections 1024;
+    }
+    
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+        
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
+        
+        access_log /var/log/nginx/access.log main;
+        error_log /var/log/nginx/error.log warn;
+        
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        keepalive_timeout 65;
+        types_hash_max_size 2048;
+        
+        gzip on;
+        gzip_vary on;
+        gzip_min_length 1024;
+        gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+        
+        upstream backend {
+            server localhost:8080;
+        }
+        
+        server {
+            listen 80;
+            server_name _;
+            
+            location / {
+                proxy_pass http://backend;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+            
+            location /health {
+                access_log off;
+                return 200 "healthy\n";
+                add_header Content-Type text/plain;
+            }
+            
+            location /metrics {
+                proxy_pass http://localhost:9090/metrics;
+                allow 10.0.0.0/8;
+                allow 172.16.0.0/12;
+                allow 192.168.0.0/16;
+                deny all;
+            }
+        }
+    }

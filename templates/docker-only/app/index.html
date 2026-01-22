@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps Docker Template</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <h1>🐳 Docker Template</h1>
+            </div>
+            <nav class="nav">
+                <a href="#features">Features</a>
+                <a href="#docs">Documentation</a>
+                <a href="#deploy">Deploy</a>
+            </nav>
+        </header>
+
+        <main class="main">
+            <section class="hero">
+                <div class="hero-content">
+                    <h2>Production-Ready Docker Application</h2>
+                    <p>A minimal, secure, and optimized Docker template for modern web applications.</p>
+                    <div class="hero-buttons">
+                        <button class="btn btn-primary" onclick="showHealth()">Check Health</button>
+                        <button class="btn btn-secondary" onclick="showInfo()">App Info</button>
+                    </div>
+                </div>
+                <div class="hero-image">
+                    <div class="docker-icon">🐳</div>
+                </div>
+            </section>
+
+            <section id="features" class="features">
+                <h3>✨ Features</h3>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🔒</div>
+                        <h4>Secure by Default</h4>
+                        <p>Non-root user, minimal base image, security best practices</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h4>Optimized</h4>
+                        <p>Multi-stage builds, minimal image size, fast startup</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🏥</div>
+                        <h4>Health Checks</h4>
+                        <p>Built-in health monitoring and readiness probes</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔄</div>
+                        <h4>Production Ready</h4>
+                        <p>Environment variables, logging, graceful shutdown</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="docs" class="docs">
+                <h3>📚 Quick Commands</h3>
+                <div class="command-grid">
+                    <div class="command-card">
+                        <h4>Build Image</h4>
+                        <code>docker build -t my-app:latest .</code>
+                    </div>
+                    <div class="command-card">
+                        <h4>Run Container</h4>
+                        <code>docker run -p 8080:80 my-app:latest</code>
+                    </div>
+                    <div class="command-card">
+                        <h4>Compose Up</h4>
+                        <code>docker-compose up -d</code>
+                    </div>
+                    <div class="command-card">
+                        <h4>View Logs</h4>
+                        <code>docker-compose logs -f</code>
+                    </div>
+                </div>
+            </section>
+
+            <section id="deploy" class="deploy">
+                <h3>🚀 Deployment Options</h3>
+                <div class="deploy-options">
+                    <div class="deploy-card">
+                        <h4>Docker Engine</h4>
+                        <p>Deploy directly to any Docker-enabled environment</p>
+                    </div>
+                    <div class="deploy-card">
+                        <h4>Kubernetes</h4>
+                        <p>Use our Kubernetes template for orchestration</p>
+                    </div>
+                    <div class="deploy-card">
+                        <h4>Cloud Platforms</h4>
+                        <p>AWS ECS, Google Cloud Run, Azure Container Instances</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2024 DevOps Project Templates. Built with Docker ❤️</p>
+        </footer>
+    </div>
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

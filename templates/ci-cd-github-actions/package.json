@@ -1,0 +1,69 @@
+{
+  "name": "ci-cd-template-app",
+  "version": "1.0.0",
+  "description": "A CI/CD pipeline template with GitHub Actions",
+  "main": "app/index.html",
+  "scripts": {
+    "start": "docker-compose up",
+    "build": "webpack --mode production",
+    "dev": "webpack serve --mode development",
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=tests/unit",
+    "test:integration": "jest --testPathPattern=tests/integration",
+    "test:e2e": "playwright test",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "security:audit": "npm audit",
+    "security:scan": "npm audit && snyk test",
+    "clean": "rm -rf dist/ coverage/ node_modules/",
+    "docker:build": "docker build -t ci-cd-template .",
+    "docker:run": "docker run -p 8080:80 ci-cd-template"
+  },
+  "keywords": [
+    "ci-cd",
+    "github-actions",
+    "devops",
+    "docker",
+    "testing",
+    "security"
+  ],
+  "author": "DevOps Project Templates",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/jest": "^29.5.8",
+    "eslint": "^8.54.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-security": "^1.7.1",
+    "jest": "^29.7.0",
+    "prettier": "^3.1.0",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.1"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "collectCoverageFrom": [
+      "app/**/*.{js,jsx}",
+      "!app/**/*.test.{js,jsx}",
+      "!app/index.html"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    }
+  }
+}

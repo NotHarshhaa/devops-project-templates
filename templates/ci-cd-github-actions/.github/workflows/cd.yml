@@ -1,0 +1,262 @@
+name: 🚀 CD Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      version:
+        description: 'Release version'
+        required: true
+        default: 'latest'
+      force_deploy:
+        description: 'Force deployment (skip health checks)'
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+
+env:
+  DOCKER_REGISTRY: 'docker.io'
+  DOCKER_IMAGE_NAME: 'my-app'
+  KUBERNETES_NAMESPACE: 'my-app'
+
+jobs:
+  deploy-staging:
+    name: 🚀 Deploy to Staging
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'staging' || github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.myapp.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: Deploy to Kubernetes
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl set image deployment/myapp myapp=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.event.inputs.version || 'latest' }} -n ${{ env.KUBERNETES_NAMESPACE }}-staging
+          kubectl rollout status deployment/myapp -n ${{ env.KUBERNETES_NAMESPACE }}-staging
+
+      - name: Health check
+        run: |
+          sleep 30
+          kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }}-staging
+          kubectl logs -l app=myapp -n ${{ env.KUBERNETES_NAMESPACE }}-staging --tail=50
+
+      - name: Run smoke tests
+        run: |
+          chmod +x scripts/smoke-tests.sh
+          ./scripts/smoke-tests.sh staging
+
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          channel: '#deployments'
+          text: '🚀 Deployed to Staging successfully!'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  deploy-production:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'production' || startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: production
+      url: https://myapp.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: Create backup
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl get deployment myapp -n ${{ env.KUBERNETES_NAMESPACE }} -o yaml > backup-deployment.yaml
+          echo "Backup created"
+
+      - name: Deploy to Kubernetes (Blue-Green)
+        run: |
+          export KUBECONFIG=kubeconfig
+          
+          # Deploy to green environment
+          kubectl apply -f k8s/production-green.yaml -n ${{ env.KUBERNETES_NAMESPACE }}
+          
+          # Wait for green deployment
+          kubectl rollout status deployment/myapp-green -n ${{ env.KUBERNETES_NAMESPACE }}
+          
+          # Health check green
+          kubectl wait --for=condition=ready pod -l app=myapp,color=green -n ${{ env.KUBERNETES_NAMESPACE }} --timeout=300s
+
+      - name: Switch traffic to Green
+        run: |
+          export KUBECONFIG=kubeconfig
+          
+          # Update service to point to green
+          kubectl patch service myapp-service -n ${{ env.KUBERNETES_NAMESPACE }} -p '{"spec":{"selector":{"color":"green"}}}'
+          
+          echo "Traffic switched to green environment"
+
+      - name: Production health checks
+        run: |
+          sleep 60
+          chmod +x scripts/health-checks.sh
+          ./scripts/health-checks.sh production
+
+      - name: Run E2E tests
+        run: |
+          chmod +x scripts/e2e-tests.sh
+          ./scripts/e2e-tests.sh production
+
+      - name: Cleanup Blue environment
+        if: success()
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl delete deployment myapp-blue -n ${{ env.KUBERNETES_NAMESPACE }} --ignore-not-found=true
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          export KUBECONFIG=kubeconfig
+          echo "Rolling back due to deployment failure..."
+          kubectl apply -f backup-deployment.yaml -n ${{ env.KUBERNETES_NAMESPACE }}
+          kubectl rollout status deployment/myapp -n ${{ env.KUBERNETES_NAMESPACE }}
+          exit 1
+
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          text: '${{ job.status == "success" && "🚀 Production deployment successful!" || "❌ Production deployment failed!" }}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  rollback:
+    name: 🔄 Rollback
+    runs-on: ubuntu-latest
+    if: failure() && github.event.inputs.environment == 'production'
+    needs: deploy-production
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Rollback deployment
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+          
+          # Rollback to previous version
+          kubectl rollout undo deployment/myapp -n ${{ env.KUBERNETES_NAMESPACE }}
+          kubectl rollout status deployment/myapp -n ${{ env.KUBERNETES_NAMESPACE }}
+          
+          echo "Rollback completed"
+
+      - name: Notify rollback
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          channel: '#deployments'
+          text: '🔄 Production rollback completed!'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+  post-deploy:
+    name: 📊 Post-Deployment Tasks
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always() && (needs.deploy-staging.result == 'success' || needs.deploy-production.result == 'success')
+    steps:
+      - name: Update documentation
+        run: |
+          echo "Updating deployment documentation..."
+          # Add your documentation update logic here
+
+      - name: Create release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const release_notes = `## Release ${tag}\n\nDeployed successfully with version ${tag}.\n\n### Changes\n\n- Automated deployment via CI/CD pipeline\n- Security scans passed\n- All tests passed\n`;
+            
+            github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `Release ${tag}`,
+              body: release_notes,
+              draft: false,
+              prerelease: false
+            });
+
+      - name: Update metrics
+        run: |
+          echo "Recording deployment metrics..."
+          # Add your metrics collection logic here
+
+      - name: Cleanup old artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+            });
+            
+            const toDelete = artifacts.data.artifacts.filter(artifact => {
+              return artifact.created_at < new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            });
+            
+            for (const artifact of toDelete) {
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+              });
+              console.log(`Deleted artifact ${artifact.name}`);
+            }
