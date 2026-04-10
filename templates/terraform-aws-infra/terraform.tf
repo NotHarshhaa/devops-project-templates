@@ -41,56 +41,6 @@ terraform {
   }
 }
 
-# Configure AWS Provider
-provider "aws" {
-  region  = var.aws_region
-  profile = var.aws_profile
-
-  default_tags {
-    tags = merge(
-      local.common_tags,
-      {
-        "ManagedBy"   = "Terraform"
-        "Project"     = var.project
-        "Environment" = var.environment
-      }
-    )
-  }
-}
-
-# Configure Kubernetes Provider (after EKS creation)
-provider "kubernetes" {
-  host                   = module.eks.cluster_endpoint
-  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "aws"
-    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region]
-  }
-}
-
-# Configure Helm Provider
-provider "helm" {
-  kubernetes {
-    host                   = module.eks.cluster_endpoint
-    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-
-    exec {
-      api_version = "client.authentication.k8s.io/v1beta1"
-      command     = "aws"
-      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region]
-    }
-  }
-}
-
-# Random resources for unique naming
-resource "random_string" "suffix" {
-  length  = 8
-  special = false
-  upper   = false
-}
-
 # Local values for common configurations
 locals {
   name_prefix = "${var.project}-${var.environment}"

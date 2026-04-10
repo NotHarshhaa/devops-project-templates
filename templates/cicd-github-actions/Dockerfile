@@ -14,12 +14,17 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Copy application files directly
 COPY --chown=appuser:appuser app /usr/share/nginx/html
 
-# Set permissions
+# Set permissions for nginx
 RUN chown -R appuser:appuser /usr/share/nginx/html && \
     chown -R appuser:appuser /var/cache/nginx && \
     chown -R appuser:appuser /var/log/nginx && \
     chown -R appuser:appuser /etc/nginx/conf.d && \
-    chown -R appuser:appuser /var/run
+    chown -R appuser:appuser /var/run && \
+    chown -R appuser:appgroup /tmp
+
+# Create nginx pid directory with proper permissions
+RUN mkdir -p /var/run/nginx && \
+    chown -R appuser:appgroup /var/run/nginx
 
 # Switch to non-root user
 USER appuser
