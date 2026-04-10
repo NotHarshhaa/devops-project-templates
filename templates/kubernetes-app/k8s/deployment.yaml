@@ -132,6 +132,12 @@ spec:
         - name: nginx
           containerPort: 80
           protocol: TCP
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
         resources:
           requests:
             memory: "64Mi"
@@ -150,6 +156,8 @@ spec:
           mountPath: /var/run
         - name: nginx-logs
           mountPath: /var/log/nginx
+        - name: nginx-tmp
+          mountPath: /tmp
         livenessProbe:
           httpGet:
             path: /health
@@ -176,6 +184,8 @@ spec:
       - name: nginx-run
         emptyDir: {}
       - name: nginx-logs
+        emptyDir: {}
+      - name: nginx-tmp
         emptyDir: {}
       imagePullSecrets:
       - name: docker-registry-secret

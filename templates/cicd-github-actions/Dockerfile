@@ -24,9 +24,6 @@ RUN chown -R appuser:appgroup /usr/share/nginx/html && \
     mkdir -p /var/run/nginx && \
     chown -R appuser:appgroup /var/run/nginx
 
-# Switch to non-root user
-USER appuser
-
 # Expose port
 EXPOSE 8080
 
