@@ -243,8 +243,9 @@ kind: Secret
 metadata:
   name: app-secrets
 type: Opaque
-data:
-  password: c2VjcmV0LXBhc3N3b3Jk  # base64 encoded
+stringData:
+  # Use stringData for plain text values (Kubernetes auto-encodes)
+  password: "REPLACE_WITH_ACTUAL_PASSWORD"
 ```
 
 ### AWS Secrets Manager

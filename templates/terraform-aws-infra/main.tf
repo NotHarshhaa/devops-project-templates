@@ -150,6 +150,17 @@ resource "random_password" "db_password" {
   min_special      = 2
 }
 
+# Random password generator for Grafana default password
+resource "random_password" "grafana_default" {
+  length           = 24
+  special          = true
+  override_special = "_!%@"
+  min_upper        = 2
+  min_lower        = 2
+  min_numeric      = 2
+  min_special      = 2
+}
+
 # Random string for unique identifiers
 resource "random_string" "suffix" {
   length  = 8
@@ -284,7 +295,7 @@ resource "helm_release" "prometheus" {
   
   set {
     name  = "grafana.adminPassword"
-    value = var.grafana_admin_password != "" ? var.grafana_admin_password : "changeme"
+    value = var.grafana_admin_password != "" ? var.grafana_admin_password : random_password.grafana_default.result
   }
   
   depends_on = [helm_release.cert_manager]

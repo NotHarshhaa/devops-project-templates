@@ -13,7 +13,7 @@ This template demonstrates a complete DevOps workflow:
 - Security scanning and compliance
 - Cost optimization and governance
 
-## 📁 Complete Structure
+## 📁 Structure
 
 ```text
 full-devops-pipeline/

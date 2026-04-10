@@ -13,6 +13,7 @@ on:
 
 env:
   NODE_VERSION: '18'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   validate-docker-template:
@@ -122,7 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./templates/ci-cd-github-actions
+        working-directory: ./templates/cicd-github-actions
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
