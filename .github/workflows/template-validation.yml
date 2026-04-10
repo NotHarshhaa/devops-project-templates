@@ -28,7 +28,7 @@ jobs:
 
       - name: Validate Dockerfile
         run: |
-          docker build -t test-docker-template .
+          docker build --no-cache -t test-docker-template .
           docker images test-docker-template
 
       - name: Validate docker-compose
@@ -38,10 +38,11 @@ jobs:
 
       - name: Test Docker build
         run: |
-          docker build -t docker-template-test .
+          docker build --no-cache -t docker-template-test .
           docker run --rm -d -p 8080:8080 --name test-container docker-template-test
           sleep 10
-          curl -f http://localhost:8080/health || echo "Health check endpoint not available"
+          docker logs test-container || true
+          curl -f http://localhost:8080/health || (docker logs test-container && exit 1)
           docker stop test-container
 
   validate-kubernetes-template:
@@ -66,7 +67,6 @@ jobs:
             echo "kubectl is available, proceeding with validation..."
             export KUBECONFIG=/dev/null
             kubectl apply --dry-run=client -f k8s/
-            kubectl validate -f k8s/ || echo "kubectl validate not available, continuing..."
           else
             echo "⚠️ kubectl not found, skipping Kubernetes validation"
           fi
@@ -141,7 +141,7 @@ jobs:
 
       - name: Validate Dockerfile
         run: |
-          docker build -t test-cicd-template .
+          docker build --no-cache -t test-cicd-template .
           docker images test-cicd-template
 
       - name: Validate GitHub Actions workflows
@@ -165,7 +165,7 @@ jobs:
         run: |
           if [ -f Dockerfile ]; then
             cd docker
-            docker build -t test-full-pipeline .
+            docker build --no-cache -t test-full-pipeline .
           fi
 
       - name: Validate Kubernetes manifests
@@ -204,10 +204,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # Always create SARIF report, even if no leaks found
-          no-ll: false
-          # Generate SARIF for no leaks
-          generate-sarif: true
+          report-format: sarif
+          report-path: results.sarif
 
       - name: Run Semgrep
         uses: returntocorp/semgrep-action@v1
@@ -323,7 +321,7 @@ jobs:
               echo "Building $template_name Docker image..."
               cd "$template_dir"
               
-              if docker build -t "test-$template_name" .; then
+              if docker build --no-cache -t "test-$template_name" .; then
                 size=$(docker images "test-$template_name" --format "{{.Size}}")
                 echo "📊 $template_name image size: $size"
                 

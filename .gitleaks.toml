@@ -12,15 +12,6 @@ paths = [
     '''terraform.tfvars.example''',
 ]
 
-regexes = [
-    '''REPLACE_WITH_.*''',
-    '''your-.*''',
-    '''placeholder''',
-    '''example''',
-    '''changeme''',
-    '''CHANGE_ME''',
-]
-
 # Allow specific common placeholder patterns
 [[allowlist.regexes]]
 description = "Allow placeholder values in Kubernetes secrets"
@@ -37,3 +28,7 @@ fileNames = [
     '''secret\.yaml''',
     '''secret\.yaml\.example''',
 ]
+
+[[allowlist.regexes]]
+description = "Allow common placeholder text"
+regex = '''(placeholder|example|changeme|CHANGE_ME)'''
