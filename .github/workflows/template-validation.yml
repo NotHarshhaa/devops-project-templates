@@ -322,7 +322,7 @@ jobs:
               cd "$template_dir"
               
               if docker build -t "test-$template_name" .; then
-                size=$(docker images "test-$template-name" --format "{{.Size}}")
+                size=$(docker images "test-$template_name" --format "{{.Size}}")
                 echo "📊 $template_name image size: $size"
                 
                 # Clean up

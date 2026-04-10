@@ -301,6 +301,9 @@ fi
 # Setup development environment
 print_status "Setting up development environment..."
 
+# Ensure scripts directory exists
+mkdir -p scripts
+
 # Create .env file if it doesn't exist
 if [ ! -f .env ]; then
     print_status "Creating .env file..."
@@ -453,6 +456,7 @@ fi
 
 # Create VS Code settings
 if [ ! -d .vscode ]; then
+    print_status "Creating VS Code settings..."
     mkdir -p .vscode
     cat > .vscode/settings.json << EOF
 {
@@ -482,6 +486,7 @@ fi
 print_status "Creating utility scripts..."
 
 # Create validate-all.sh script
+print_status "Creating validate-all.sh script..."
 cat > scripts/validate-all.sh << 'EOF'
 #!/bin/bash
 # Validate all templates
@@ -489,28 +494,40 @@ cat > scripts/validate-all.sh << 'EOF'
 echo "🧪 Validating all DevOps templates..."
 
 # Validate Docker template
-echo "🐳 Validating Docker template..."
-cd templates/docker-only
-docker build -t test-docker-template .
-docker-compose config
-cd ../..
+if [ -d "templates/docker-only" ]; then
+    echo "🐳 Validating Docker template..."
+    cd templates/docker-only
+    docker build -t test-docker-template .
+    docker-compose config
+    cd ../..
+else
+    echo "⚠️  Docker template not found, skipping..."
+fi
 
 # Validate Kubernetes template
-echo "☸️  Validating Kubernetes template..."
-cd templates/kubernetes-app
-kubectl apply --dry-run=client -f k8s/
-helm lint helm-chart/
-cd ../..
+if [ -d "templates/kubernetes-app" ]; then
+    echo "☸️  Validating Kubernetes template..."
+    cd templates/kubernetes-app
+    kubectl apply --dry-run=client -f k8s/
+    helm lint helm-chart/
+    cd ../..
+else
+    echo "⚠️  Kubernetes template not found, skipping..."
+fi
 
 # Validate Terraform template
-echo "🌩️  Validating Terraform template..."
-cd templates/terraform-aws-infra
-terraform init -backend=false
-terraform validate
-terraform fmt -check
-cd ../..
+if [ -d "templates/terraform-aws-infra" ]; then
+    echo "🌩️  Validating Terraform template..."
+    cd templates/terraform-aws-infra
+    terraform init -backend=false
+    terraform validate
+    terraform fmt -check
+    cd ../..
+else
+    echo "⚠️  Terraform template not found, skipping..."
+fi
 
-echo "✅ All templates validated successfully!"
+echo "✅ Template validation completed!"
 EOF
 chmod +x scripts/validate-all.sh
 
@@ -541,6 +558,7 @@ EOF
 chmod +x scripts/clean-all.sh
 
 # Create deploy-all.sh script
+print_status "Creating deploy-all.sh script..."
 cat > scripts/deploy-all.sh << 'EOF'
 #!/bin/bash
 # Deploy all templates to development environment
@@ -548,29 +566,47 @@ cat > scripts/deploy-all.sh << 'EOF'
 echo "🚀 Deploying all templates to development environment..."
 
 # Load environment variables
-source .env
+if [ -f .env ]; then
+    source .env
+else
+    echo "⚠️  .env file not found, using default values..."
+fi
 
 # Deploy Docker template
-echo "🐳 Deploying Docker template..."
-cd templates/docker-only
-docker-compose up -d
-cd ../..
+if [ -d "templates/docker-only" ]; then
+    echo "🐳 Deploying Docker template..."
+    cd templates/docker-only
+    docker-compose up -d
+    cd ../..
+else
+    echo "⚠️  Docker template not found, skipping..."
+fi
 
 # Deploy Terraform infrastructure
-echo "🌩️  Deploying Terraform infrastructure..."
-cd templates/terraform-aws-infra/environments/dev
-terraform init
-terraform apply -auto-approve
-cd ../../..
+if [ -d "templates/terraform-aws-infra/environments/dev" ]; then
+    echo "🌩️ Deploying Terraform infrastructure..."
+    cd templates/terraform-aws-infra/environments/dev
+    terraform init
+    terraform apply -auto-approve
+    cd ../../..
+else
+    echo "⚠️  Terraform template not found, skipping..."
+fi
 
 # Deploy Kubernetes application
-echo "☸️  Deploying Kubernetes application..."
-aws eks update-kubeconfig --name ${PROJECT_NAME}-dev-eks
-cd templates/kubernetes-app
-kubectl apply -f k8s/
-cd ../..
+if [ -d "templates/kubernetes-app" ] && command -v kubectl &> /dev/null; then
+    echo "☸️  Deploying Kubernetes application..."
+    if [ -n "$PROJECT_NAME" ]; then
+        aws eks update-kubeconfig --name ${PROJECT_NAME}-dev-eks 2>/dev/null || echo "⚠️  Could not update kubeconfig"
+    fi
+    cd templates/kubernetes-app
+    kubectl apply -f k8s/
+    cd ../..
+else
+    echo "⚠️  Kubernetes template not found or kubectl not installed, skipping..."
+fi
 
-echo "✅ All templates deployed successfully!"
+echo "✅ Deployment process completed!"
 EOF
 chmod +x scripts/deploy-all.sh
 

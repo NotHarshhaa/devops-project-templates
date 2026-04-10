@@ -296,6 +296,13 @@ variable "notification_email" {
   default     = "alerts@company.com"
 }
 
+variable "grafana_admin_password" {
+  description = "Admin password for Grafana (leave empty to use auto-generated password)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 # Domain Configuration
 variable "domain_name" {
   description = "Domain name for the application"

@@ -139,6 +139,24 @@ module "monitoring" {
   tags = local.tags
 }
 
+# Random password generator for database
+resource "random_password" "db_password" {
+  length           = 32
+  special          = true
+  override_special = "_!%@"
+  min_upper        = 2
+  min_lower        = 2
+  min_numeric      = 2
+  min_special      = 2
+}
+
+# Random string for unique identifiers
+resource "random_string" "suffix" {
+  length  = 8
+  special = false
+  upper   = false
+}
+
 # Cost Estimation Module (Optional)
 module "cost_estimation" {
   source = "./modules/cost"
@@ -206,7 +224,7 @@ resource "kubernetes_secret" "app_secrets" {
   }
   
   data = {
-    DATABASE_PASSWORD = var.database_password != "" ? var.database_password : "changeme"
+    DATABASE_PASSWORD = var.database_password != "" ? var.database_password : random_password.db_password.result
     RDS_USERNAME      = var.database_username
   }
   
@@ -266,7 +284,7 @@ resource "helm_release" "prometheus" {
   
   set {
     name  = "grafana.adminPassword"
-    value = "admin123"
+    value = var.grafana_admin_password != "" ? var.grafana_admin_password : "changeme"
   }
   
   depends_on = [helm_release.cert_manager]
