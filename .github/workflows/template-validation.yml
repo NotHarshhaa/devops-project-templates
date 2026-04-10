@@ -65,8 +65,7 @@ jobs:
           # Check if kubectl is available
           if command -v kubectl &> /dev/null; then
             echo "kubectl is available, proceeding with validation..."
-            export KUBECONFIG=/dev/null
-            kubectl apply --dry-run=client -f k8s/
+            kubectl apply --dry-run=client --server="" -f k8s/
           else
             echo "⚠️ kubectl not found, skipping Kubernetes validation"
           fi
@@ -104,12 +103,19 @@ jobs:
         run: terraform fmt -check -recursive
 
       - name: Terraform Validate
-        run: terraform validate
+        run: |
+          terraform init -backend=false
+          terraform validate
 
       - name: Run tflint
-        uses: terraform-linters/tflint@v0.44.1
-        with:
-          working-directory: ./templates/terraform-aws-infra
+        run: |
+          terraform init -backend=false
+          tflint
+        working-directory: ./templates/terraform-aws-infra
+
+      - name: Init Terraform for tfsec
+        run: terraform init -backend=false
+        working-directory: ./templates/terraform-aws-infra
 
       - name: Run tfsec
         uses: aquasecurity/tfsec-action@v1.0.0
@@ -203,9 +209,6 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          report-format: sarif
-          report-path: results.sarif
 
       - name: Run Semgrep
         uses: returntocorp/semgrep-action@v1
