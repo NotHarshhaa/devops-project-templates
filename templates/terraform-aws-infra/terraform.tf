@@ -1,6 +1,6 @@
 terraform {
   required_version = ">= 1.5.0"
-  
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -31,7 +31,7 @@ terraform {
       version = "~> 2.2"
     }
   }
-  
+
   backend "s3" {
     bucket         = "my-app-terraform-state"
     key            = "terraform.tfstate"
@@ -45,13 +45,13 @@ terraform {
 provider "aws" {
   region  = var.aws_region
   profile = var.aws_profile
-  
+
   default_tags {
     tags = merge(
       local.common_tags,
       {
-        "ManagedBy" = "Terraform"
-        "Project"   = var.project
+        "ManagedBy"   = "Terraform"
+        "Project"     = var.project
         "Environment" = var.environment
       }
     )
@@ -62,7 +62,7 @@ provider "aws" {
 provider "kubernetes" {
   host                   = module.eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-  
+
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
@@ -75,7 +75,7 @@ provider "helm" {
   kubernetes {
     host                   = module.eks.cluster_endpoint
     cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-    
+
     exec {
       api_version = "client.authentication.k8s.io/v1beta1"
       command     = "aws"
@@ -94,7 +94,7 @@ resource "random_string" "suffix" {
 # Local values for common configurations
 locals {
   name_prefix = "${var.project}-${var.environment}"
-  
+
   common_tags = {
     "Team"        = var.team
     "Owner"       = var.owner
@@ -104,6 +104,6 @@ locals {
     "ManagedBy"   = "Terraform"
     "CreatedAt"   = timestamp()
   }
-  
+
   tags = merge(local.common_tags, var.extra_tags)
 }

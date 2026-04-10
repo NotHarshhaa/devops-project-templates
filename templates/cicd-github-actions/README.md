@@ -14,7 +14,7 @@ This template helps you:
 ## 📁 Structure
 
 ```text
-ci-cd-github-actions/
+cicd-github-actions/
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml
@@ -37,7 +37,7 @@ ci-cd-github-actions/
 └── README.md
 ```
 
-## 🚀 Workflows Overview
+## 🚀 Quick Start
 
 ### 1. CI Pipeline (ci.yml)
 - **Trigger**: Push to main/develop branches

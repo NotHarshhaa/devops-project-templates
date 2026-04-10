@@ -2,15 +2,15 @@
 provider "aws" {
   region  = var.aws_region
   profile = var.aws_profile
-  
+
   default_tags {
     tags = merge(
       local.common_tags,
       {
-        "ManagedBy" = "Terraform"
-        "Project"   = var.project
+        "ManagedBy"   = "Terraform"
+        "Project"     = var.project
         "Environment" = var.environment
-        "Provider"  = "AWS"
+        "Provider"    = "AWS"
       }
     )
   }
@@ -18,18 +18,18 @@ provider "aws" {
 
 # Additional AWS Provider for us-east-1 (required for some resources like ACM certificates)
 provider "aws" {
-  alias  = "us_east_1"
-  region = "us-east-1"
+  alias   = "us_east_1"
+  region  = "us-east-1"
   profile = var.aws_profile
-  
+
   default_tags {
     tags = merge(
       local.common_tags,
       {
-        "ManagedBy" = "Terraform"
-        "Project"   = var.project
+        "ManagedBy"   = "Terraform"
+        "Project"     = var.project
         "Environment" = var.environment
-        "Provider"  = "AWS"
+        "Provider"    = "AWS"
       }
     )
   }
@@ -47,7 +47,7 @@ data "aws_eks_cluster_auth" "cluster_auth" {
 provider "kubernetes" {
   host                   = data.aws_eks_cluster.cluster.endpoint
   cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-  
+
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
@@ -60,7 +60,7 @@ provider "helm" {
   kubernetes {
     host                   = data.aws_eks_cluster.cluster.endpoint
     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-    
+
     exec {
       api_version = "client.authentication.k8s.io/v1beta1"
       command     = "aws"
@@ -101,12 +101,12 @@ data "aws_availability_zones" "available" {
 data "aws_ami" "amazon_linux_2" {
   most_recent = true
   owners      = ["amazon"]
-  
+
   filter {
     name   = "name"
     values = ["amzn2-ami-hvm-*-x86_64-gp2"]
   }
-  
+
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
@@ -117,12 +117,12 @@ data "aws_ami" "amazon_linux_2" {
 data "aws_ami" "eks_worker" {
   most_recent = true
   owners      = ["amazon"]
-  
+
   filter {
     name   = "name"
     values = ["amazon-eks-node-${var.cluster_version}-*"]
   }
-  
+
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
@@ -301,7 +301,7 @@ data "aws_iam_policy_document" "kms_key_policy" {
     actions   = ["kms:*"]
     resources = ["*"]
   }
-  
+
   statement {
     sid    = "Allow EKS to use the key"
     effect = "Allow"

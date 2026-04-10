@@ -1,12 +1,12 @@
-name: 🧪 Template Validation
+name: DevOps Project Templates Validation
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ master ]
     paths:
       - 'templates/**'
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
     paths:
       - 'templates/**'
   workflow_dispatch:
@@ -33,8 +33,8 @@ jobs:
 
       - name: Validate docker-compose
         run: |
-          docker-compose config
-          docker-compose -f docker-compose.yml config --quiet
+          docker compose config
+          docker compose -f docker-compose.yml config --quiet
 
       - name: Test Docker build
         run: |
@@ -60,6 +60,8 @@ jobs:
           version: 'v1.28.0'
 
       - name: Validate Kubernetes manifests
+        env:
+          KUBECONFIG: ""
         run: |
           kubectl apply --dry-run=client -f k8s/
           kubectl validate -f k8s/ || echo "kubectl validate not available, continuing..."
