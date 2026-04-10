@@ -39,7 +39,7 @@ jobs:
       - name: Test Docker build
         run: |
           docker build -t docker-template-test .
-          docker run --rm -d -p 8080:80 --name test-container docker-template-test
+          docker run --rm -d -p 8080:8080 --name test-container docker-template-test
           sleep 10
           curl -f http://localhost:8080/health || echo "Health check endpoint not available"
           docker stop test-container
@@ -64,13 +64,12 @@ jobs:
           # Check if kubectl is available
           if command -v kubectl &> /dev/null; then
             echo "kubectl is available, proceeding with validation..."
+            export KUBECONFIG=/dev/null
+            kubectl apply --dry-run=client -f k8s/
+            kubectl validate -f k8s/ || echo "kubectl validate not available, continuing..."
           else
             echo "⚠️ kubectl not found, skipping Kubernetes validation"
-            exit 0
           fi
-          
-          kubectl apply --dry-run=client --context="" -f k8s/
-          kubectl validate --context="" -f k8s/ || echo "kubectl validate not available, continuing..."
 
       - name: Setup Helm
         uses: azure/setup-helm@v3
@@ -204,6 +203,11 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Always create SARIF report, even if no leaks found
+          no-ll: false
+          # Generate SARIF for no leaks
+          generate-sarif: true
 
       - name: Run Semgrep
         uses: returntocorp/semgrep-action@v1

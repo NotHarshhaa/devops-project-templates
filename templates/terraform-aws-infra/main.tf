@@ -44,7 +44,7 @@ module "security" {
 
 # EKS Module
 module "eks" {
-  source = file("./modules/eks")
+  source = "./modules/eks"
 
   project     = var.project
   environment = var.environment
@@ -66,7 +66,7 @@ module "eks" {
 
 # RDS Module
 module "rds" {
-  source = file("./modules/rds")
+  source = "./modules/rds"
 
   project     = var.project
   environment = var.environment
@@ -99,7 +99,7 @@ module "rds" {
 
 # S3 Module
 module "s3" {
-  source = file("./modules/s3")
+  source = "./modules/s3"
 
   project     = var.project
   environment = var.environment
@@ -117,7 +117,7 @@ module "s3" {
 
 # Monitoring Module
 module "monitoring" {
-  source = file("./modules/monitoring")
+  source = "./modules/monitoring"
 
   project     = var.project
   environment = var.environment

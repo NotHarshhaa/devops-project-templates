@@ -34,7 +34,7 @@ docker-only/
 
 2. **Run the container**
    ```bash
-   docker run -p 8080:80 my-app:latest
+   docker run -p 8080:8080 my-app:latest
    ```
 
 3. **Or use Docker Compose**
