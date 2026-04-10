@@ -4,9 +4,9 @@ FROM nginx:alpine AS production
 # Install curl for health checks
 RUN apk add --no-cache curl
 
-# Create non-root user
-RUN addgroup -g 1001 -S appuser && \
-    adduser -S appuser -u 1001
+# Create non-root user and group
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -S appuser -u 1001 -G appgroup
 
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
@@ -20,7 +20,7 @@ RUN chown -R appuser:appuser /usr/share/nginx/html && \
     chown -R appuser:appuser /var/log/nginx && \
     chown -R appuser:appuser /etc/nginx/conf.d && \
     chown -R appuser:appuser /var/run && \
-    chown -R appuser:appgroup /tmp
+    chown -R appuser:appuser /tmp
 
 # Create nginx pid directory with proper permissions
 RUN mkdir -p /var/run/nginx && \

@@ -17,7 +17,7 @@ env:
 
 jobs:
   validate-docker-template:
-    name: 🐳 Validate Docker Template
+    name: Validate Docker Template
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -45,7 +45,7 @@ jobs:
           docker stop test-container
 
   validate-kubernetes-template:
-    name: ☸️ Validate Kubernetes Template
+    name: Validate Kubernetes Template
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -61,6 +61,14 @@ jobs:
 
       - name: Validate Kubernetes manifests
         run: |
+          # Check if kubectl is available
+          if command -v kubectl &> /dev/null; then
+            echo "kubectl is available, proceeding with validation..."
+          else
+            echo "⚠️ kubectl not found, skipping Kubernetes validation"
+            exit 0
+          fi
+          
           kubectl apply --dry-run=client --context="" -f k8s/
           kubectl validate --context="" -f k8s/ || echo "kubectl validate not available, continuing..."
 
@@ -79,7 +87,7 @@ jobs:
           helm install test-release helm-chart/ --dry-run --debug
 
   validate-terraform-template:
-    name: 🌩️ Validate Terraform Template
+    name: Validate Terraform Template
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -111,7 +119,7 @@ jobs:
           soft_fail: true
 
   validate-cicd-template:
-    name: 🔄 Validate CI/CD Template
+    name: Validate CI/CD Template
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -145,7 +153,7 @@ jobs:
           done
 
   validate-full-pipeline-template:
-    name: 🚀 Validate Full Pipeline Template
+    name: Validate Full Pipeline Template
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -186,7 +194,7 @@ jobs:
           fi
 
   security-scan:
-    name: 🔒 Security Scan All Templates
+    name: Security Scan All Templates
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -215,7 +223,7 @@ jobs:
           grep -r -i "password\|secret\|key\|token" templates/ --include="*.yml" --include="*.yaml" --include="*.json" --include="*.tf" | grep -v "example\|placeholder\|changeme\|your_" || echo "No hardcoded secrets found"
 
   documentation-check:
-    name: 📚 Documentation Check
+    name: Documentation Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -251,7 +259,7 @@ jobs:
           done
 
   template-consistency:
-    name: 🔍 Template Consistency Check
+    name: Template Consistency Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -343,7 +351,7 @@ jobs:
           fi
 
   notify-results:
-    name: 📢 Notify Results
+    name: Notify Results
     runs-on: ubuntu-latest
     needs: [validate-docker-template, validate-kubernetes-template, validate-terraform-template, validate-cicd-template, validate-full-pipeline-template, security-scan, documentation-check, template-consistency, performance-check]
     if: always()
